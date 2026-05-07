@@ -184,6 +184,24 @@ async function mineLoop(gameType) {
       allMethods: allResults.map((r) => ({ method: r.method, number: r.number, size: r.size, color: r.color, confidence: r.confidence })),
     };
 
+    // Server-side isolated Random Prediction Generation for nextId
+    const randNum = Math.floor(Math.random() * 10);
+    const randSize = randNum >= 5 ? "BIG" : "SMALL";
+    const randGetColor = (n) => {
+      if (n === 0) return "RED_VIOLET";
+      if (n === 5) return "GREEN_VIOLET";
+      if ([2,4,6,8].includes(n)) return "RED";
+      return "GREEN";
+    };
+    const randColor = randGetColor(randNum);
+
+    await pool.query(
+      `INSERT INTO rand_predictions (game_type, period_id, rand_num, rand_size, rand_color)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (game_type, period_id) DO NOTHING`,
+      [gameType, nextId, randNum, randSize, randColor]
+    ).catch(err => console.error(`[${gameType}] DB rand_predict err:`, err.message));
+
   } catch (err) {
     console.error(`[${gameType}] Error:`, err.message);
   }
