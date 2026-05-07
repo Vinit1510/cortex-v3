@@ -1,0 +1,16 @@
+{
+  "name": "cortex-v3-neural-engine",
+  "version": "3.0.0",
+  "description": "24/7 Autonomous Neural Prediction Engine for WinGo",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
