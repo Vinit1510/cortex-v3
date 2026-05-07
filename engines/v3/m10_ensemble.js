@@ -18,43 +18,47 @@ function ensemble(allResults, features, history, weights) {
     return { number: 5, size: "BIG", color: "GREEN_VIOLET", confidence: 0, method: "ENSEMBLE" };
   }
 
-  const sizeWeights = { BIG: 0, SMALL: 0 };
-  const numWeights = {};
-  let totalWeight = 0;
+  const sizeVotes = { BIG: 0, SMALL: 0 };
   let maxConfMethod = active[0];
 
   for (const r of active) {
-    const baseWeight = weights.get(r.method) || 1.0;
-    const confWeight = r.confidence / 100;
-    const w = baseWeight * confWeight;
-    if (w <= 0) continue;
-
-    sizeWeights[r.size] = (sizeWeights[r.size] || 0) + w;
-    numWeights[r.number] = (numWeights[r.number] || 0) + w;
-    totalWeight += w;
+    sizeVotes[r.size]++;
     if (r.confidence > maxConfMethod.confidence) maxConfMethod = r;
   }
 
-  if (totalWeight === 0) {
-    return { number: 5, size: "BIG", color: "GREEN_VIOLET", confidence: 0, method: "ENSEMBLE" };
-  }
-
-  const numEntries = Object.entries(numWeights).sort(([, a], [, b]) => b - a);
-  // Size MUST match the predicted number — no contradictions
-  const finalNum = numEntries.length > 0 ? parseInt(numEntries[0][0]) : 5;
-  const finalSize = finalNum >= 5 ? "BIG" : "SMALL";
-
-  // Confidence = agreement strength × weighted average confidence
-  const sizeAgreement = Math.max(sizeWeights.BIG || 0, sizeWeights.SMALL || 0) / totalWeight;
+  const totalActive = active.length;
+  const bigVotes = sizeVotes.BIG;
+  const smallVotes = sizeVotes.SMALL;
   
-  // CONSENSUS RULE: If the engines disagree heavily (< 70% agreement), do not bet!
-  if (sizeAgreement < 0.70) {
+  // STRICT DEMOCRATIC CONSENSUS: At least 60% of active models MUST agree on Size.
+  const requiredVotes = Math.ceil(totalActive * 0.60); 
+  const majoritySize = bigVotes >= requiredVotes ? "BIG" : (smallVotes >= requiredVotes ? "SMALL" : null);
+
+  if (!majoritySize) {
     return { number: 5, size: "BIG", color: "GREEN_VIOLET", confidence: 0, method: "ENSEMBLE(CONTRADICTION)" };
   }
 
+  // Now that we have a valid mathematical majority, weight the numbers WITHIN that majority size
+  const numWeights = {};
+  for (const r of active) {
+    if (r.size !== majoritySize) continue; // Ignore dissenting votes when picking the specific number
+    const baseWeight = weights.get(r.method) || 1.0;
+    const confWeight = r.confidence / 100;
+    const w = baseWeight * confWeight;
+    numWeights[r.number] = (numWeights[r.number] || 0) + w;
+  }
+
+  const numEntries = Object.entries(numWeights).sort(([, a], [, b]) => b - a);
+  const finalNum = numEntries.length > 0 ? parseInt(numEntries[0][0]) : (majoritySize === "BIG" ? 7 : 2);
+  const finalSize = finalNum >= 5 ? "BIG" : "SMALL";
+
+  // Confidence calculation
+  const voteStrength = Math.max(bigVotes, smallVotes) / totalActive;
   const weightedConf = active.reduce((sum, r) => sum + r.confidence * (weights.get(r.method) || 1), 0)
     / active.reduce((sum, r) => sum + (weights.get(r.method) || 1), 0);
-  const confidence = Math.min(92, Math.round(sizeAgreement * 50 + weightedConf * 0.5));
+    
+  // Base confidence is the weighted confidence. Boosted slightly by vote strength.
+  const confidence = Math.min(92, Math.round(weightedConf * 0.7 + voteStrength * 30));
 
   let color = "GREEN";
   if (finalNum === 0) color = "RED_VIOLET";

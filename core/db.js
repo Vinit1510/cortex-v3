@@ -47,6 +47,26 @@ async function initDB() {
       )
     `);
 
+    // Random Generator predictions table (for scientific benchmark comparison)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS rand_predictions (
+        id SERIAL PRIMARY KEY,
+        game_type VARCHAR(3) NOT NULL,
+        period_id VARCHAR(30) NOT NULL,
+        rand_num INTEGER NOT NULL,
+        rand_size VARCHAR(5) NOT NULL,
+        rand_color VARCHAR(15) NOT NULL,
+        actual_num INTEGER,
+        actual_size VARCHAR(5),
+        actual_color VARCHAR(15),
+        size_win VARCHAR(4) DEFAULT 'PENDING',
+        num_win VARCHAR(4) DEFAULT 'PENDING',
+        color_win VARCHAR(4) DEFAULT 'PENDING',
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(game_type, period_id)
+      )
+    `);
+
     console.log("[DB] Tables ready ✅");
   } finally {
     client.release();

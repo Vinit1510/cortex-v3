@@ -28,11 +28,8 @@ function predict(features, history) {
     }
     const seqLikelihood = (seqCount + 1) / (history.length + 10);
 
-    // Gap likelihood: numbers with longer gaps get slightly higher probability
-    const gap = features.gapAnalysis[n] || 0;
-    const gapLikelihood = (gap + 1) / 15;
-
-    posterior[n] = prior * seqLikelihood * gapLikelihood;
+    // Removed gap likelihood entirely to stop the AI from betting on "Dead Numbers" (Gambler's Fallacy)
+    posterior[n] = prior * seqLikelihood;
     totalPosterior += posterior[n];
   }
 
@@ -42,7 +39,8 @@ function predict(features, history) {
     if (p > bestProb) { bestProb = p; bestNum = n; }
   }
 
-  const confidence = Math.min(85, Math.round(bestProb * 100 * 6 + 15));
+  // Confidence scaling: 10% probability (random guess) = 0% confidence. 35% probability = 85% confidence.
+  const confidence = Math.max(0, Math.min(85, Math.round((bestProb - 0.10) * 340)));
   const size = bestNum >= 5 ? "BIG" : "SMALL";
   let color = "GREEN";
   if (bestNum === 0) color = "RED_VIOLET"; else if (bestNum === 5) color = "GREEN_VIOLET"; else if ([2,4,6,8].includes(bestNum)) color = "RED";

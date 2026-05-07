@@ -258,15 +258,86 @@ app.get("/api/stats", async (req, res) => {
   }
 });
 
+// Reset AI Memory (Weights) without deleting mined history
+app.post("/api/reset_weights", async (req, res) => {
+  await pool.query("DELETE FROM method_weights");
+  methodWeights.clear();
+  res.json({ ok: true, message: "AI Memory Wiped. Learning from scratch." });
+});
+
 // Clear data
 app.delete("/api/clear/:mode", async (req, res) => {
   const mode = req.params.mode === "30S" ? "30S" : "1M";
   await pool.query("DELETE FROM predictions WHERE game_type = $1", [mode]);
+  await pool.query("DELETE FROM rand_predictions WHERE game_type = $1", [mode]);
   await pool.query("DELETE FROM method_weights");
   methodWeights.clear();
   state[mode].lastPred = null;
   state[mode].lastId = null;
   res.json({ ok: true, message: `Cleared ${mode} data` });
+});
+
+// Store a random prediction for a specific period
+app.post("/api/rand_predict", async (req, res) => {
+  try {
+    const { gameType, periodId, randNum, randSize, randColor } = req.body;
+    if (!gameType || !periodId || randNum === undefined) {
+      return res.status(400).json({ error: "Missing fields" });
+    }
+    // INSERT ... ON CONFLICT DO NOTHING so we only store the FIRST prediction per period
+    await pool.query(
+      `INSERT INTO rand_predictions (game_type, period_id, rand_num, rand_size, rand_color)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (game_type, period_id) DO NOTHING`,
+      [gameType, periodId, randNum, randSize, randColor]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get randomizer stats & recent results for comparison
+app.get("/api/rand_stats", async (req, res) => {
+  try {
+    const game = req.query.game === "30S" ? "30S" : "1M";
+    // Join rand_predictions with actual predictions to fill in results
+    const result = await pool.query(
+      `SELECT r.period_id, r.rand_num, r.rand_size, r.rand_color,
+              p.actual_num, p.actual_size, p.actual_color,
+              CASE WHEN p.actual_size IS NULL THEN 'PENDING'
+                   WHEN r.rand_size = p.actual_size THEN 'WIN' ELSE 'LOSS' END AS size_win,
+              CASE WHEN p.actual_num IS NULL THEN 'PENDING'
+                   WHEN r.rand_num = p.actual_num THEN 'WIN' ELSE 'LOSS' END AS num_win,
+              CASE WHEN p.actual_color IS NULL THEN 'PENDING'
+                   WHEN r.rand_color = p.actual_color OR
+                        (r.rand_color LIKE '%RED%' AND p.actual_color LIKE '%RED%') OR
+                        (r.rand_color LIKE '%GREEN%' AND p.actual_color LIKE '%GREEN%')
+                        THEN 'WIN' ELSE 'LOSS' END AS color_win,
+              r.created_at
+       FROM rand_predictions r
+       LEFT JOIN predictions p ON r.game_type = p.game_type AND r.period_id = p.period_id
+       WHERE r.game_type = $1
+       ORDER BY r.created_at DESC
+       LIMIT 30`,
+      [game]
+    );
+    const rows = result.rows;
+    const played = rows.filter(r => r.size_win !== 'PENDING');
+    const total = played.length;
+    const sizeWins = played.filter(r => r.size_win === 'WIN').length;
+    const colorWins = played.filter(r => r.color_win === 'WIN').length;
+    res.json({
+      recent: rows,
+      stats: {
+        total,
+        sizeWinRate: total > 0 ? Math.round((sizeWins / total) * 100) : 0,
+        colorWinRate: total > 0 ? Math.round((colorWins / total) * 100) : 0,
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Download CSV (export from database)
