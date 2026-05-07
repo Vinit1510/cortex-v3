@@ -3,7 +3,16 @@
  * Predicts the number with the LONGEST gap since last appearance.
  */
 function predict(features, history) {
-  const { gapAnalysis } = features;
+  const { gapAnalysis, totalRows } = features;
+
+  // Need some history for gaps to be meaningful
+  if (totalRows < 20) {
+    const pool = [0,1,2,3,4,5,6,7,8,9];
+    const n = pool[Math.floor(Math.random() * 10)];
+    const size = n >= 5 ? "BIG" : "SMALL";
+    return { number: n, size, color: "GREEN", confidence: 15, method: "GAP_HUNTER" };
+  }
+
   let longestNum = 0, longestGap = -1;
   for (let n = 0; n <= 9; n++) {
     if ((gapAnalysis[n] || 0) > longestGap) { longestGap = gapAnalysis[n]; longestNum = n; }

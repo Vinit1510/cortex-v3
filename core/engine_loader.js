@@ -86,9 +86,9 @@ function weightedVote(results, weights) {
     totalConf += r.confidence;
   }
 
-  const finalSize = sizeVotes.BIG >= sizeVotes.SMALL ? "BIG" : "SMALL";
   const numEntries = Object.entries(numVotes).sort(([, a], [, b]) => b - a);
   const finalNum = numEntries.length > 0 ? parseInt(numEntries[0][0]) : 5;
+  const finalSize = finalNum >= 5 ? "BIG" : "SMALL";
   const avgConf = Math.round(totalConf / active.length);
   const bestMethod = active.reduce((a, b) => (a.confidence >= b.confidence ? a : b));
 

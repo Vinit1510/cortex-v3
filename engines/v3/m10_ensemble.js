@@ -39,9 +39,10 @@ function ensemble(allResults, features, history, weights) {
     return { number: 5, size: "BIG", color: "GREEN_VIOLET", confidence: 0, method: "ENSEMBLE" };
   }
 
-  const finalSize = (sizeWeights.BIG || 0) >= (sizeWeights.SMALL || 0) ? "BIG" : "SMALL";
   const numEntries = Object.entries(numWeights).sort(([, a], [, b]) => b - a);
+  // Size MUST match the predicted number — no contradictions
   const finalNum = numEntries.length > 0 ? parseInt(numEntries[0][0]) : 5;
+  const finalSize = finalNum >= 5 ? "BIG" : "SMALL";
 
   // Confidence = agreement strength × weighted average confidence
   const sizeAgreement = Math.max(sizeWeights.BIG || 0, sizeWeights.SMALL || 0) / totalWeight;
