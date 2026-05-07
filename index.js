@@ -120,13 +120,15 @@ async function mineLoop(gameType) {
       const actualSize = actualNum >= 5 ? "BIG" : "SMALL";
       const actualColor = getColor(actualNum);
 
-      const numWin = actualNum === gs.lastPred.n ? "WIN" : "LOSS";
-      const sizeWin = actualSize === gs.lastPred.sz ? "WIN" : "LOSS";
-      const colorWin =
+      const isSkip = gs.lastPred.confidence === 0;
+      const numWin = isSkip ? "SKIP" : (actualNum === gs.lastPred.n ? "WIN" : "LOSS");
+      const sizeWin = isSkip ? "SKIP" : (actualSize === gs.lastPred.sz ? "WIN" : "LOSS");
+      const colorWin = isSkip ? "SKIP" : (
         actualColor === gs.lastPred.col ||
         (actualColor.includes("RED") && gs.lastPred.col.includes("RED")) ||
         (actualColor.includes("GREEN") && gs.lastPred.col.includes("GREEN"))
-          ? "WIN" : "LOSS";
+          ? "WIN" : "LOSS"
+      );
 
       // Update method weights in database
       if (gs.lastPred.allMethods) {
@@ -298,14 +300,15 @@ async function computeRolling(game, minutes) {
       [game]
     );
     const rows = res.rows;
-    const total = rows.length;
-    if (total === 0) return { rounds: 0, sizeWin: 0, numWin: 0, colorWin: 0 };
+    const playedRows = rows.filter(r => r.size_win !== 'SKIP');
+    const total = playedRows.length;
+    if (total === 0) return { rounds: rows.length, sizeWin: 0, numWin: 0, colorWin: 0 }; // Still show total mined rounds, but 0% win if none played
 
     return {
-      rounds: total,
-      sizeWin: Math.round((rows.filter((r) => r.size_win === "WIN").length / total) * 100),
-      numWin: Math.round((rows.filter((r) => r.num_win === "WIN").length / total) * 100),
-      colorWin: Math.round((rows.filter((r) => r.color_win === "WIN").length / total) * 100),
+      rounds: total, // Show how many were actually PLAYED
+      sizeWin: Math.round((playedRows.filter((r) => r.size_win === "WIN").length / total) * 100),
+      numWin: Math.round((playedRows.filter((r) => r.num_win === "WIN").length / total) * 100),
+      colorWin: Math.round((playedRows.filter((r) => r.color_win === "WIN").length / total) * 100),
     };
   } catch { return { rounds: 0, sizeWin: 0, numWin: 0, colorWin: 0 }; }
 }
@@ -318,14 +321,15 @@ async function computeSureShots(game) {
       [game]
     );
     const rows = res.rows;
-    const total = rows.length;
+    const playedRows = rows.filter(r => r.size_win !== 'SKIP');
+    const total = playedRows.length;
     if (total === 0) return { rounds: 0, sizeWin: 0, numWin: 0, colorWin: 0 };
 
     return {
       rounds: total,
-      sizeWin: Math.round((rows.filter((r) => r.size_win === "WIN").length / total) * 100),
-      numWin: Math.round((rows.filter((r) => r.num_win === "WIN").length / total) * 100),
-      colorWin: Math.round((rows.filter((r) => r.color_win === "WIN").length / total) * 100),
+      sizeWin: Math.round((playedRows.filter((r) => r.size_win === "WIN").length / total) * 100),
+      numWin: Math.round((playedRows.filter((r) => r.num_win === "WIN").length / total) * 100),
+      colorWin: Math.round((playedRows.filter((r) => r.color_win === "WIN").length / total) * 100),
     };
   } catch { return { rounds: 0, sizeWin: 0, numWin: 0, colorWin: 0 }; }
 }
@@ -333,6 +337,8 @@ async function computeSureShots(game) {
 function computeHourly(rows) {
   const groups = {};
   for (const r of rows) {
+    if (r.size_win === "SKIP") continue; // Exclude skipped rounds from hourly average entirely
+    
     const key = `${r.date_ist}|${r.hour_ist}`;
     if (!groups[key]) groups[key] = { date: r.date_ist, hour: r.hour_ist, total: 0, sizeW: 0, numW: 0, colorW: 0 };
     groups[key].total++;
