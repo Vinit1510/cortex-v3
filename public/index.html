@@ -418,13 +418,14 @@
         if (d.recent && d.recent.length > 0) {
           tblEl.innerHTML = `
             <table>
-              <tr><th>Period</th><th>Mode</th><th>Actual</th><th>Pred</th><th>Strategy</th><th>Size</th><th>Num</th><th>Color</th><th>Time</th></tr>
+              <tr><th>Period</th><th>Mode</th><th>Actual</th><th>Pred</th><th>Conf %</th><th>Strategy</th><th>Size</th><th>Num</th><th>Color</th><th>Time</th></tr>
               ${d.recent.map((r) => `
                 <tr class="fade-in">
                   <td style="font-weight:700; color:#334155;">${String(r.periodId).slice(-6)}</td>
                   <td>${r.source === 'NEURAL' ? '<span class="source-badge source-neural" style="padding:2px 8px;font-size:10px;">🧠 AI</span>' : '<span class="source-badge source-statistical" style="padding:2px 8px;font-size:10px;">⚡ STAT</span>'}</td>
                   <td><span class="num-badge ${getColorClass(r.actualColor)}">${r.actualNum}</span></td>
                   <td>${r.confidence === 0 ? '<span class="num-badge" style="background:#cbd5e1;color:white;">-</span>' : `<span class="num-badge ${getColorClass(r.predColor)}">${r.predNum}</span>`}</td>
+                  <td>${r.confidence === 0 ? '<span style="color:#94a3b8;font-size:12px;font-weight:700;">-</span>' : `<span style="color:${r.confidence >= 65 ? '#16a34a' : '#d97706'};font-weight:800;font-size:12px;">${r.confidence}%</span>`}</td>
                   <td style="font-size:11px;color:#64748b;font-weight:600">${r.pattern || '-'}</td>
                   <td>${r.confidence === 0 ? '<span style="color:#94a3b8;font-size:11px;">SKIP</span>' : `<span class="${r.sizeWin === 'WIN' ? 'win' : 'loss'}">${r.sizeWin}</span>`}</td>
                   <td>${r.confidence === 0 ? '<span style="color:#94a3b8;font-size:11px;">SKIP</span>' : `<span class="${r.numWin === 'WIN' ? 'win' : 'loss'}">${r.numWin}</span>`}</td>
