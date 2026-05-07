@@ -112,10 +112,12 @@ async function mineLoop(gameType) {
 
     // Skip if same round
     if (gs.lastId === latest.issueNumber) return;
+    
+    // Mark this round as processed immediately to prevent infinite duplicate loops
+    gs.lastId = latest.issueNumber;
 
     // Evaluate previous prediction
     if (gs.lastPred && gs.lastPred.targetId === latest.issueNumber) {
-      gs.lastId = latest.issueNumber;
       const actualNum = parseInt(latest.number);
       const actualSize = actualNum >= 5 ? "BIG" : "SMALL";
       const actualColor = getColor(actualNum);
