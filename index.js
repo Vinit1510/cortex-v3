@@ -225,6 +225,7 @@ app.get("/api/stats", async (req, res) => {
     // Rolling pulse — last 10 and 20 minutes
     const rolling10 = await computeRolling(game, 10);
     const rolling20 = await computeRolling(game, 20);
+    const sureShots = await computeSureShots(game);
 
     // Hourly analytics
     const hourlyQuery = dateFilter
@@ -246,7 +247,7 @@ app.get("/api/stats", async (req, res) => {
       lastFetchedAt: gs.lastFetchedAt,
     };
 
-    res.json({ prediction, recent, rolling10, rolling20, hourly, methods, engineStatus });
+    res.json({ prediction, recent, rolling10, rolling20, sureShots, hourly, methods, engineStatus });
   } catch (err) {
     console.error("[API] Error:", err.message);
     res.status(500).json({ error: err.message });
@@ -294,6 +295,26 @@ async function computeRolling(game, minutes) {
     const res = await pool.query(
       `SELECT size_win, num_win, color_win FROM predictions
        WHERE game_type = $1 AND created_at >= NOW() - INTERVAL '${minutes} minutes'`,
+      [game]
+    );
+    const rows = res.rows;
+    const total = rows.length;
+    if (total === 0) return { rounds: 0, sizeWin: 0, numWin: 0, colorWin: 0 };
+
+    return {
+      rounds: total,
+      sizeWin: Math.round((rows.filter((r) => r.size_win === "WIN").length / total) * 100),
+      numWin: Math.round((rows.filter((r) => r.num_win === "WIN").length / total) * 100),
+      colorWin: Math.round((rows.filter((r) => r.color_win === "WIN").length / total) * 100),
+    };
+  } catch { return { rounds: 0, sizeWin: 0, numWin: 0, colorWin: 0 }; }
+}
+
+async function computeSureShots(game) {
+  try {
+    const res = await pool.query(
+      `SELECT size_win, num_win, color_win FROM predictions
+       WHERE game_type = $1 AND confidence >= 65`,
       [game]
     );
     const rows = res.rows;
