@@ -46,6 +46,12 @@ function ensemble(allResults, features, history, weights) {
 
   // Confidence = agreement strength × weighted average confidence
   const sizeAgreement = Math.max(sizeWeights.BIG || 0, sizeWeights.SMALL || 0) / totalWeight;
+  
+  // CONSENSUS RULE: If the engines disagree heavily (< 70% agreement), do not bet!
+  if (sizeAgreement < 0.70) {
+    return { number: 5, size: "BIG", color: "GREEN_VIOLET", confidence: 0, method: "ENSEMBLE(CONTRADICTION)" };
+  }
+
   const weightedConf = active.reduce((sum, r) => sum + r.confidence * (weights.get(r.method) || 1), 0)
     / active.reduce((sum, r) => sum + (weights.get(r.method) || 1), 0);
   const confidence = Math.min(92, Math.round(sizeAgreement * 50 + weightedConf * 0.5));

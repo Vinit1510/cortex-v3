@@ -17,8 +17,8 @@ const PORT = process.env.PORT || 3000;
 
 // ─── State ────────────────────────────────────────────────────
 const state = {
-  "1M": { lastPred: null, lastId: null, lastFetchedAt: null },
-  "30S": { lastPred: null, lastId: null, lastFetchedAt: null },
+  "1M": { lastPred: null, lastId: null, lastFetchedAt: null, cooldown: 0 },
+  "30S": { lastPred: null, lastId: null, lastFetchedAt: null, cooldown: 0 },
 };
 
 // ─── Method Weights (persisted in PostgreSQL) ─────────────────
@@ -133,6 +133,12 @@ async function mineLoop(gameType) {
         await updateWeights(gs.lastPred.allMethods, actualSize, actualNum);
       }
 
+      // COOLDOWN TRIGGER: If we just lost a HIGH confidence bet, pattern broke. Go to sleep for 3 rounds.
+      if (gs.lastPred.confidence >= 65 && sizeWin === "LOSS") {
+        gs.cooldown = 3;
+        console.log(`[${gameType}] HIGH CONFIDENCE FAILURE DETECTED. Entering 3-round COOLDOWN.`);
+      }
+
       // Insert into database
       const { date, time, hour } = nowIST();
       await pool.query(
@@ -152,11 +158,20 @@ async function mineLoop(gameType) {
 
     // Generate new prediction
     const { features, history: dbHistory } = await buildFeatures(gameType);
-    const weights = getWeightMap();
-    const { allResults, final } = runAllMethods(features, dbHistory, weights);
-
     const source = features.totalRows >= 100 ? "NEURAL" : "STATISTICAL";
     const nextId = String(BigInt(latest.issueNumber) + 1n);
+
+    let final, allResults = [];
+    if (gs.cooldown > 0) {
+      gs.cooldown--;
+      final = { number: 5, size: "BIG", color: "GREEN_VIOLET", confidence: 0, method: "COOLDOWN_ACTIVE" };
+      allResults = [final];
+    } else {
+      const weights = getWeightMap();
+      const res = runAllMethods(features, dbHistory, weights);
+      allResults = res.allResults;
+      final = res.final;
+    }
 
     gs.lastPred = {
       n: final.number, sz: final.size, col: final.color,
