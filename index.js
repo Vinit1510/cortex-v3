@@ -3,14 +3,13 @@
  * ║          CORTEX V3 — Neural Engine Server                   ║
  * ║     24/7 Autonomous Data Mining & Prediction System         ║
  * ║                                                             ║
- * ║  10-Method Ensemble AI | CSV Storage | IST Timezone         ║
+ * ║  10-Method Ensemble AI | PostgreSQL Storage | IST Timezone  ║
  * ╚══════════════════════════════════════════════════════════════╝
  */
 
 const express = require("express");
-const fs = require("fs");
-const path = require("path");
-const { buildFeatures, parseCSV, ensureCSV, getColor, CSV_PATH, CSV_HEADERS } = require("./core/features");
+const { pool, initDB } = require("./core/db");
+const { buildFeatures, getColor } = require("./core/features");
 const { runAllMethods } = require("./core/engine_loader");
 
 const app = express();
@@ -22,24 +21,28 @@ const state = {
   "30S": { lastPred: null, lastId: null, lastFetchedAt: null },
 };
 
-// ─── Method Weights (persisted to JSON) ───────────────────────
-const WEIGHTS_PATH = path.join(__dirname, "method_weights.json");
+// ─── Method Weights (persisted in PostgreSQL) ─────────────────
 let methodWeights = new Map();
 
-function loadWeights() {
+async function loadWeights() {
   try {
-    if (fs.existsSync(WEIGHTS_PATH)) {
-      const data = JSON.parse(fs.readFileSync(WEIGHTS_PATH, "utf-8"));
-      methodWeights = new Map(Object.entries(data));
-      console.log("[WEIGHTS] Loaded saved weights:", methodWeights.size, "methods");
+    const res = await pool.query("SELECT method, wins, total FROM method_weights");
+    methodWeights = new Map();
+    for (const row of res.rows) {
+      methodWeights.set(row.method, { wins: row.wins, total: row.total });
     }
-  } catch { console.log("[WEIGHTS] No saved weights found, starting fresh"); }
+    console.log("[WEIGHTS] Loaded", methodWeights.size, "methods from database");
+  } catch (err) { console.log("[WEIGHTS] Starting fresh:", err.message); }
 }
 
-function saveWeights() {
+async function saveWeight(method, stats) {
   try {
-    const obj = Object.fromEntries(methodWeights);
-    fs.writeFileSync(WEIGHTS_PATH, JSON.stringify(obj, null, 2));
+    await pool.query(
+      `INSERT INTO method_weights (method, wins, total, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (method) DO UPDATE SET wins = $2, total = $3, updated_at = NOW()`,
+      [method, stats.wins, stats.total]
+    );
   } catch (err) { console.error("[WEIGHTS] Save error:", err.message); }
 }
 
@@ -52,14 +55,14 @@ function getWeightMap() {
   return m;
 }
 
-function updateWeights(allResults, actualSize, actualNum) {
+async function updateWeights(allResults, actualSize, actualNum) {
   for (const r of allResults) {
     if (!methodWeights.has(r.method)) methodWeights.set(r.method, { wins: 0, total: 0 });
     const stats = methodWeights.get(r.method);
     stats.total++;
     if (r.size === actualSize) stats.wins++;
+    await saveWeight(r.method, stats);
   }
-  saveWeights();
 }
 
 function getMethodAccuracies() {
@@ -125,29 +128,32 @@ async function mineLoop(gameType) {
         (actualColor.includes("GREEN") && gs.lastPred.col.includes("GREEN"))
           ? "WIN" : "LOSS";
 
-      // Update method weights
+      // Update method weights in database
       if (gs.lastPred.allMethods) {
-        updateWeights(gs.lastPred.allMethods, actualSize, actualNum);
+        await updateWeights(gs.lastPred.allMethods, actualSize, actualNum);
       }
 
-      // Write to CSV
+      // Insert into database
       const { date, time, hour } = nowIST();
-      const row = [gameType, date, time, hour, latest.issueNumber,
-        actualNum, actualSize, actualColor,
-        gs.lastPred.n, gs.lastPred.sz, gs.lastPred.col,
-        gs.lastPred.method, numWin, sizeWin, colorWin,
-        gs.lastPred.confidence, gs.lastPred.source
-      ].join(",");
+      await pool.query(
+        `INSERT INTO predictions
+         (game_type, date_ist, time_ist, hour_ist, period_id, actual_num, actual_size, actual_color,
+          pred_num, pred_size, pred_color, pattern_used, num_win, size_win, color_win, confidence, source)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+        [gameType, date, time, hour, latest.issueNumber,
+         actualNum, actualSize, actualColor,
+         gs.lastPred.n, gs.lastPred.sz, gs.lastPred.col,
+         gs.lastPred.method, numWin, sizeWin, colorWin,
+         gs.lastPred.confidence, gs.lastPred.source]
+      );
 
-      ensureCSV();
-      fs.appendFileSync(CSV_PATH, row + "\n");
       console.log(`[${gameType}] ${latest.issueNumber} | Size:${sizeWin} Num:${numWin} Color:${colorWin} | ${gs.lastPred.method}`);
     }
 
     // Generate new prediction
-    const { features, history: csvHistory } = buildFeatures(gameType);
+    const { features, history: dbHistory } = await buildFeatures(gameType);
     const weights = getWeightMap();
-    const { allResults, final } = runAllMethods(features, csvHistory, weights);
+    const { allResults, final } = runAllMethods(features, dbHistory, weights);
 
     const source = features.totalRows >= 100 ? "NEURAL" : "STATISTICAL";
     const nextId = String(BigInt(latest.issueNumber) + 1n);
@@ -165,110 +171,138 @@ async function mineLoop(gameType) {
 }
 
 // ─── API Routes ───────────────────────────────────────────────
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(require("path").join(__dirname, "public")));
 app.use(express.json());
 
 // Stats endpoint
-app.get("/api/stats", (req, res) => {
-  const game = req.query.game === "30S" ? "30S" : "1M";
-  const dateFilter = req.query.date || null;
-  const gs = state[game];
-  const allRows = parseCSV().filter((r) => r.gameType === game);
+app.get("/api/stats", async (req, res) => {
+  try {
+    const game = req.query.game === "30S" ? "30S" : "1M";
+    const dateFilter = req.query.date || null;
+    const gs = state[game];
 
-  // Current prediction
-  const prediction = gs.lastPred ? {
-    number: gs.lastPred.n, size: gs.lastPred.sz, color: gs.lastPred.col,
-    method: gs.lastPred.method, confidence: gs.lastPred.confidence,
-    source: gs.lastPred.source, targetId: gs.lastPred.targetId,
-    allMethods: gs.lastPred.allMethods || [],
-  } : null;
+    // Current prediction
+    const prediction = gs.lastPred ? {
+      number: gs.lastPred.n, size: gs.lastPred.sz, color: gs.lastPred.col,
+      method: gs.lastPred.method, confidence: gs.lastPred.confidence,
+      source: gs.lastPred.source, targetId: gs.lastPred.targetId,
+      allMethods: gs.lastPred.allMethods || [],
+    } : null;
 
-  // Recent results (last 15)
-  const recent = allRows.slice(-15).reverse().map((r) => ({
-    periodId: r.periodId, actualNum: r.actualNum, actualSize: r.actualSize, actualColor: r.actualColor,
-    predNum: r.predNum, predSize: r.predSize, predColor: r.predColor,
-    pattern: r.pattern, numWin: r.numWin, sizeWin: r.sizeWin, colorWin: r.colorWin,
-    time: r.time, confidence: r.confidence, source: r.source,
-  }));
+    // Recent results (last 15)
+    const recentRes = await pool.query(
+      `SELECT * FROM predictions WHERE game_type = $1 ORDER BY id DESC LIMIT 15`,
+      [game]
+    );
+    const recent = recentRes.rows.map((r) => ({
+      periodId: r.period_id, actualNum: r.actual_num, actualSize: r.actual_size, actualColor: r.actual_color,
+      predNum: r.pred_num, predSize: r.pred_size, predColor: r.pred_color,
+      pattern: r.pattern_used, numWin: r.num_win, sizeWin: r.size_win, colorWin: r.color_win,
+      time: r.time_ist, confidence: r.confidence, source: r.source,
+    }));
 
-  // Rolling pulse — last 10 and 20 minutes
-  const nowMs = Date.now();
-  const rolling10 = computeRolling(allRows, 10, nowMs);
-  const rolling20 = computeRolling(allRows, 20, nowMs);
+    // Total count
+    const countRes = await pool.query(
+      `SELECT COUNT(*) as cnt FROM predictions WHERE game_type = $1`, [game]
+    );
+    const totalRows = parseInt(countRes.rows[0].cnt) || 0;
 
-  // Hourly analytics
-  const hourlyFilter = dateFilter ? allRows.filter((r) => r.date === dateFilter) : allRows;
-  const hourly = computeHourly(hourlyFilter);
+    // Rolling pulse — last 10 and 20 minutes
+    const rolling10 = await computeRolling(game, 10);
+    const rolling20 = await computeRolling(game, 20);
 
-  // Method leaderboard
-  const methods = getMethodAccuracies();
+    // Hourly analytics
+    const hourlyQuery = dateFilter
+      ? await pool.query(
+          `SELECT date_ist, hour_ist, size_win, num_win, color_win FROM predictions WHERE game_type = $1 AND date_ist = $2`,
+          [game, dateFilter])
+      : await pool.query(
+          `SELECT date_ist, hour_ist, size_win, num_win, color_win FROM predictions WHERE game_type = $1`,
+          [game]);
+    const hourly = computeHourly(hourlyQuery.rows);
 
-  // Engine status
-  const engineStatus = {
-    totalRows: allRows.length,
-    source: allRows.length >= 100 ? "NEURAL" : "STATISTICAL",
-    lastFetchedAt: gs.lastFetchedAt,
-  };
+    // Method leaderboard
+    const methods = getMethodAccuracies();
 
-  res.json({ prediction, recent, rolling10, rolling20, hourly, methods, engineStatus });
+    // Engine status
+    const engineStatus = {
+      totalRows,
+      source: totalRows >= 100 ? "NEURAL" : "STATISTICAL",
+      lastFetchedAt: gs.lastFetchedAt,
+    };
+
+    res.json({ prediction, recent, rolling10, rolling20, hourly, methods, engineStatus });
+  } catch (err) {
+    console.error("[API] Error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Clear data
-app.delete("/api/clear/:mode", (req, res) => {
+app.delete("/api/clear/:mode", async (req, res) => {
   const mode = req.params.mode === "30S" ? "30S" : "1M";
-  const allRows = parseCSV();
-  const kept = allRows.filter((r) => r.gameType !== mode);
-  const lines = [CSV_HEADERS, ...kept.map((r) =>
-    [r.gameType, r.date, r.time, r.hour, r.periodId, r.actualNum, r.actualSize, r.actualColor,
-     r.predNum, r.predSize, r.predColor, r.pattern, r.numWin, r.sizeWin, r.colorWin, r.confidence, r.source].join(",")
-  )];
-  fs.writeFileSync(CSV_PATH, lines.join("\n") + "\n");
+  await pool.query("DELETE FROM predictions WHERE game_type = $1", [mode]);
+  await pool.query("DELETE FROM method_weights");
+  methodWeights.clear();
   state[mode].lastPred = null;
   state[mode].lastId = null;
   res.json({ ok: true, message: `Cleared ${mode} data` });
 });
 
-// Download CSV
-app.get("/data", (req, res) => {
-  ensureCSV();
-  res.download(CSV_PATH, "intel.csv");
+// Download CSV (export from database)
+app.get("/data", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM predictions ORDER BY id ASC");
+    const headers = "GameType,Date_IST,Time_IST,Hour_IST,PeriodID,ActualNum,ActualSize,ActualColor,PredNum,PredSize,PredColor,PatternUsed,NumWin,SizeWin,ColorWin,Confidence,Source";
+    const rows = result.rows.map((r) =>
+      [r.game_type, r.date_ist, r.time_ist, r.hour_ist, r.period_id,
+       r.actual_num, r.actual_size, r.actual_color,
+       r.pred_num, r.pred_size, r.pred_color,
+       r.pattern_used, r.num_win, r.size_win, r.color_win,
+       r.confidence, r.source].join(",")
+    );
+    const csv = [headers, ...rows].join("\n");
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=intel.csv");
+    res.send(csv);
+  } catch (err) {
+    res.status(500).send("Error exporting CSV");
+  }
 });
 
 // Health check (for UptimeRobot)
 app.get("/health", (req, res) => res.json({ status: "alive", uptime: process.uptime() }));
 
 // ─── Helpers ──────────────────────────────────────────────────
-function computeRolling(rows, minutes, nowMs) {
-  const cutoff = nowMs - minutes * 60 * 1000;
-  const recent = rows.filter((r) => {
-    const dt = new Date(`${r.date}T${r.time}+05:30`);
-    return dt.getTime() >= cutoff;
-  });
+async function computeRolling(game, minutes) {
+  try {
+    const res = await pool.query(
+      `SELECT size_win, num_win, color_win FROM predictions
+       WHERE game_type = $1 AND created_at >= NOW() - INTERVAL '${minutes} minutes'`,
+      [game]
+    );
+    const rows = res.rows;
+    const total = rows.length;
+    if (total === 0) return { rounds: 0, sizeWin: 0, numWin: 0, colorWin: 0 };
 
-  const total = recent.length;
-  if (total === 0) return { rounds: 0, sizeWin: 0, numWin: 0, colorWin: 0 };
-
-  const sizeWins = recent.filter((r) => r.sizeWin === "WIN").length;
-  const numWins = recent.filter((r) => r.numWin === "WIN").length;
-  const colorWins = recent.filter((r) => r.colorWin === "WIN").length;
-
-  return {
-    rounds: total,
-    sizeWin: Math.round((sizeWins / total) * 100),
-    numWin: Math.round((numWins / total) * 100),
-    colorWin: Math.round((colorWins / total) * 100),
-  };
+    return {
+      rounds: total,
+      sizeWin: Math.round((rows.filter((r) => r.size_win === "WIN").length / total) * 100),
+      numWin: Math.round((rows.filter((r) => r.num_win === "WIN").length / total) * 100),
+      colorWin: Math.round((rows.filter((r) => r.color_win === "WIN").length / total) * 100),
+    };
+  } catch { return { rounds: 0, sizeWin: 0, numWin: 0, colorWin: 0 }; }
 }
 
 function computeHourly(rows) {
   const groups = {};
   for (const r of rows) {
-    const key = `${r.date}|${r.hour}`;
-    if (!groups[key]) groups[key] = { date: r.date, hour: r.hour, total: 0, sizeW: 0, numW: 0, colorW: 0 };
+    const key = `${r.date_ist}|${r.hour_ist}`;
+    if (!groups[key]) groups[key] = { date: r.date_ist, hour: r.hour_ist, total: 0, sizeW: 0, numW: 0, colorW: 0 };
     groups[key].total++;
-    if (r.sizeWin === "WIN") groups[key].sizeW++;
-    if (r.numWin === "WIN") groups[key].numW++;
-    if (r.colorWin === "WIN") groups[key].colorW++;
+    if (r.size_win === "WIN") groups[key].sizeW++;
+    if (r.num_win === "WIN") groups[key].numW++;
+    if (r.color_win === "WIN") groups[key].colorW++;
   }
 
   return Object.values(groups)
@@ -284,20 +318,27 @@ function computeHourly(rows) {
 }
 
 // ─── Start Server & Miners ────────────────────────────────────
-loadWeights();
-ensureCSV();
+async function start() {
+  await initDB();
+  await loadWeights();
 
-app.listen(PORT, () => {
-  console.log(`\n╔══════════════════════════════════════════╗`);
-  console.log(`║   CORTEX V3 Neural Engine Active         ║`);
-  console.log(`║   Dashboard: http://localhost:${PORT}        ║`);
-  console.log(`║   Mining: WinGo 1M + 30S                 ║`);
-  console.log(`║   Storage: intel.csv                     ║`);
-  console.log(`╚══════════════════════════════════════════╝\n`);
+  app.listen(PORT, () => {
+    console.log(`\n╔══════════════════════════════════════════╗`);
+    console.log(`║   CORTEX V3 Neural Engine Active         ║`);
+    console.log(`║   Dashboard: http://localhost:${PORT}        ║`);
+    console.log(`║   Mining: WinGo 1M + 30S                 ║`);
+    console.log(`║   Storage: PostgreSQL ✅                  ║`);
+    console.log(`╚══════════════════════════════════════════╝\n`);
 
-  // Start mining loops
-  mineLoop("1M");
-  mineLoop("30S");
-  setInterval(() => mineLoop("1M"), 9000);   // Every 9 seconds
-  setInterval(() => mineLoop("30S"), 9000);  // Every 9 seconds
+    // Start mining loops
+    mineLoop("1M");
+    mineLoop("30S");
+    setInterval(() => mineLoop("1M"), 9000);
+    setInterval(() => mineLoop("30S"), 9000);
+  });
+}
+
+start().catch((err) => {
+  console.error("FATAL:", err);
+  process.exit(1);
 });
