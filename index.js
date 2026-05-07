@@ -319,6 +319,36 @@ app.post("/api/rand_predict", async (req, res) => {
 app.get("/api/rand_stats", async (req, res) => {
   try {
     const game = req.query.game === "30S" ? "30S" : "1M";
+    const gs = state[game];
+    const targetId = gs && gs.lastPred ? gs.lastPred.targetId : null;
+
+    if (targetId) {
+      // Check if a random prediction already exists for this active target period
+      const checkRes = await pool.query(
+        "SELECT id FROM rand_predictions WHERE game_type = $1 AND period_id = $2",
+        [game, targetId]
+      );
+      if (checkRes.rows.length === 0) {
+        // Auto-generate one on the fly!
+        const randNum = Math.floor(Math.random() * 10);
+        const randSize = randNum >= 5 ? "BIG" : "SMALL";
+        const randGetColor = (n) => {
+          if (n === 0) return "RED_VIOLET";
+          if (n === 5) return "GREEN_VIOLET";
+          if ([2,4,6,8].includes(n)) return "RED";
+          return "GREEN";
+        };
+        const randColor = randGetColor(randNum);
+
+        await pool.query(
+          `INSERT INTO rand_predictions (game_type, period_id, rand_num, rand_size, rand_color)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (game_type, period_id) DO NOTHING`,
+          [game, targetId, randNum, randSize, randColor]
+        ).catch(err => console.error(`[${game}] On-the-fly rand_predict err:`, err.message));
+      }
+    }
+
     // Join rand_predictions with actual predictions to fill in results
     const result = await pool.query(
       `SELECT r.period_id, r.rand_num, r.rand_size, r.rand_color,
