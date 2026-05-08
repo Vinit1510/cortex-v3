@@ -47,6 +47,14 @@ async function initDB() {
       )
     `);
 
+    // Auto-migrate: drop rand_predictions if it is an old table lacking the rand_color column
+    try {
+      await client.query("SELECT rand_color FROM rand_predictions LIMIT 1");
+    } catch (e) {
+      console.log("[DB] Migrating rand_predictions schema (re-creating)...");
+      await client.query("DROP TABLE IF EXISTS rand_predictions");
+    }
+
     // Random Generator predictions table (for scientific benchmark comparison)
     await client.query(`
       CREATE TABLE IF NOT EXISTS rand_predictions (
