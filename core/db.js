@@ -47,12 +47,13 @@ async function initDB() {
       )
     `);
 
-    // Auto-migrate: drop rand_predictions if it is an old table lacking the rand_color column
+    // Auto-migrate: widen columns to VARCHAR(10) so 'PENDING' (7 chars) can be saved successfully
     try {
-      await client.query("SELECT rand_color FROM rand_predictions LIMIT 1");
+      await client.query("ALTER TABLE rand_predictions ALTER COLUMN size_win TYPE VARCHAR(10)");
+      await client.query("ALTER TABLE rand_predictions ALTER COLUMN num_win TYPE VARCHAR(10)");
+      await client.query("ALTER TABLE rand_predictions ALTER COLUMN color_win TYPE VARCHAR(10)");
     } catch (e) {
-      console.log("[DB] Migrating rand_predictions schema (re-creating)...");
-      await client.query("DROP TABLE IF EXISTS rand_predictions");
+      // Ignore if table doesn't exist yet
     }
 
     // Random Generator predictions table (for scientific benchmark comparison)
@@ -67,9 +68,9 @@ async function initDB() {
         actual_num INTEGER,
         actual_size VARCHAR(5),
         actual_color VARCHAR(15),
-        size_win VARCHAR(4) DEFAULT 'PENDING',
-        num_win VARCHAR(4) DEFAULT 'PENDING',
-        color_win VARCHAR(4) DEFAULT 'PENDING',
+        size_win VARCHAR(10) DEFAULT 'PENDING',
+        num_win VARCHAR(10) DEFAULT 'PENDING',
+        color_win VARCHAR(10) DEFAULT 'PENDING',
         created_at TIMESTAMP DEFAULT NOW(),
         UNIQUE(game_type, period_id)
       )
