@@ -149,7 +149,8 @@ async function mineLoop(gameType) {
         `INSERT INTO predictions
          (game_type, date_ist, time_ist, hour_ist, period_id, actual_num, actual_size, actual_color,
           pred_num, pred_size, pred_color, pattern_used, num_win, size_win, color_win, confidence, source)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+         ON CONFLICT (game_type, period_id) DO NOTHING`,
         [gameType, date, time, hour, latest.issueNumber,
          actualNum, actualSize, actualColor,
          gs.lastPred.n, gs.lastPred.sz, gs.lastPred.col,
@@ -374,9 +375,13 @@ app.get("/api/rand_stats", async (req, res) => {
                         THEN 'WIN' ELSE 'LOSS' END AS color_win,
               r.created_at
        FROM rand_predictions r
-       LEFT JOIN predictions p ON r.game_type = p.game_type AND r.period_id = p.period_id
+       LEFT JOIN (
+         SELECT DISTINCT ON (game_type, period_id) game_type, period_id, actual_num, actual_size, actual_color
+         FROM predictions
+         ORDER BY game_type, period_id, id DESC
+       ) p ON r.game_type = p.game_type AND r.period_id = p.period_id
        WHERE r.game_type = $1
-       ORDER BY r.created_at DESC
+       ORDER BY r.period_id DESC, r.created_at DESC
        LIMIT 30`,
       [game]
     );
@@ -385,12 +390,67 @@ app.get("/api/rand_stats", async (req, res) => {
     const total = played.length;
     const sizeWins = played.filter(r => r.size_win === 'WIN').length;
     const colorWins = played.filter(r => r.color_win === 'WIN').length;
+
+    // Last 15 played rounds calculations
+    const last15 = played.slice(0, 15);
+    const sizeWins15 = last15.filter(r => r.size_win === 'WIN').length;
+    const colorWins15 = last15.filter(r => r.color_win === 'WIN').length;
+
+    // Last 30 played rounds calculations
+    const last30 = played.slice(0, 30);
+    const sizeWins30 = last30.filter(r => r.size_win === 'WIN').length;
+    const colorWins30 = last30.filter(r => r.color_win === 'WIN').length;
+
+    // Streaks calculation (oldest to newest, so we reverse the played array)
+    const chronological = [...played].reverse();
+    let currentStreakType = "NONE"; // "WIN" or "LOSS"
+    let currentStreakCount = 0;
+    let maxWinStreak = 0;
+    let maxLossStreak = 0;
+
+    for (const r of chronological) {
+      const outcome = r.size_win; // 'WIN' or 'LOSS'
+      if (outcome === 'WIN') {
+        if (currentStreakType === 'WIN') {
+          currentStreakCount++;
+        } else {
+          currentStreakType = 'WIN';
+          currentStreakCount = 1;
+        }
+        if (currentStreakCount > maxWinStreak) maxWinStreak = currentStreakCount;
+      } else if (outcome === 'LOSS') {
+        if (currentStreakType === 'LOSS') {
+          currentStreakCount++;
+        } else {
+          currentStreakType = 'LOSS';
+          currentStreakCount = 1;
+        }
+        if (currentStreakCount > maxLossStreak) maxLossStreak = currentStreakCount;
+      }
+    }
+
     res.json({
       recent: rows,
       stats: {
         total,
         sizeWinRate: total > 0 ? Math.round((sizeWins / total) * 100) : 0,
         colorWinRate: total > 0 ? Math.round((colorWins / total) * 100) : 0,
+        last15: {
+          total: last15.length,
+          sizeWinRate: last15.length > 0 ? Math.round((sizeWins15 / last15.length) * 100) : 0,
+          colorWinRate: last15.length > 0 ? Math.round((colorWins15 / last15.length) * 100) : 0,
+        },
+        last30: {
+          total: last30.length,
+          sizeWinRate: last30.length > 0 ? Math.round((sizeWins30 / last30.length) * 100) : 0,
+          colorWinRate: last30.length > 0 ? Math.round((colorWins30 / last30.length) * 100) : 0,
+        },
+        streaks: {
+          currentType: currentStreakType,
+          currentCount: currentStreakCount,
+          maxWin: maxWinStreak,
+          maxLoss: maxLossStreak
+        }
       }
     });
   } catch (err) {

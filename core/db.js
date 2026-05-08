@@ -37,6 +37,19 @@ async function initDB() {
       )
     `);
 
+    // Auto-migrate: clean existing duplicates from predictions and add predictions unique constraint
+    try {
+      await client.query(`
+        DELETE FROM predictions a USING predictions b
+        WHERE a.id < b.id AND a.game_type = b.game_type AND a.period_id = b.period_id
+      `);
+      await client.query(`
+        ALTER TABLE predictions ADD CONSTRAINT predictions_unique_game_period UNIQUE(game_type, period_id)
+      `);
+    } catch (e) {
+      // Ignore if constraint already exists or fails
+    }
+
     // Method weights table (persisted across restarts!)
     await client.query(`
       CREATE TABLE IF NOT EXISTS method_weights (
