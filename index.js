@@ -295,6 +295,16 @@ app.delete("/api/clear/:mode", async (req, res) => {
   res.json({ ok: true, message: `Cleared ${mode} data` });
 });
 
+// Clear all random predictions
+app.post("/api/clear_randomizer", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM rand_predictions");
+    res.json({ ok: true, message: "Cleared all random predictions history" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Store a random prediction for a specific period
 app.post("/api/rand_predict", async (req, res) => {
   try {
