@@ -53,11 +53,6 @@ function predict(features, history) {
     return { number: 5, size: "BIG", color: "GREEN_VIOLET", confidence: 20, method: "MARKOV" };
   }
 
-  let bestNum = 0, bestProb = 0;
-  for (let n = 0; n <= 9; n++) {
-    const prob = matrix[lastNum][n] / total;
-    if (prob > bestProb) { bestProb = prob; bestNum = n; }
-  }
 
   const confidence = Math.min(85, Math.round(bestProb * 100 + 10));
   const size = bestNum >= 5 ? "BIG" : "SMALL";
