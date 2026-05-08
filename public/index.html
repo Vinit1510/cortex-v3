@@ -195,39 +195,49 @@
         <div style="display:flex; flex-direction:column; gap:16px;">
           <h2 style="font-size:15px; font-weight:800; color:#7c3aed; text-align:center; padding:10px; background:#f5f3ff; border-radius:8px; margin-bottom:0;">🎲 WinGo 30S Randomizer</h2>
           
-          <!-- Win Rates Box -->
+          <!-- Standalone All-Time Accuracy Box -->
           <div class="card" style="border-top:4px solid #f59e0b; text-align:center; padding:16px;">
-            <div style="font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; margin-bottom:12px;">🎲 Randomizer Accuracy Analytics</div>
-            
-            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; border-bottom:1px solid #e2e8f0; padding-bottom:12px; margin-bottom:12px;">
+            <div style="font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; margin-bottom:8px;">🏆 All-Time Randomizer Accuracy</div>
+            <div style="display:flex; justify-content:space-around; align-items:center; margin-top:8px;">
               <div>
-                <div style="font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase;">All-Time</div>
-                <div style="font-size:22px; font-weight:900; color:#f59e0b; margin-top:4px;" id="randSizeWinRate_30S">—%</div>
+                <div style="font-size:36px; font-weight:900; color:#f59e0b;" id="randSizeWinRate_30S">—%</div>
+                <div style="font-size:10px; color:#64748b; font-weight:700; text-transform:uppercase; margin-top:2px;">Size Win</div>
+              </div>
+              <div style="border-left:1px solid #e2e8f0; height:40px;"></div>
+              <div>
+                <div style="font-size:36px; font-weight:900; color:#f59e0b;" id="randColorWinRate_30S">—%</div>
+                <div style="font-size:10px; color:#64748b; font-weight:700; text-transform:uppercase; margin-top:2px;">Color Win</div>
+              </div>
+            </div>
+            <div style="font-size:11px; color:#94a3b8; font-weight:700; margin-top:12px; border-top:1px solid #f1f5f9; padding-top:8px;" id="randTotalRounds_30S">0 total played rounds</div>
+          </div>
+
+          <!-- Rolling Analytics & Streaks Box -->
+          <div class="card" style="border-top:4px solid #10b981; text-align:center; padding:16px;">
+            <div style="font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; margin-bottom:12px;">📊 Rolling Analytics & Streaks</div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; border-bottom:1px solid #e2e8f0; padding-bottom:12px; margin-bottom:12px;">
+              <div style="border-right:1px solid #f1f5f9; padding-right:8px;">
+                <div style="font-size:10px; font-weight:700; color:#10b981; text-transform:uppercase;">Last 15 Rounds</div>
+                <div style="font-size:24px; font-weight:900; color:#10b981; margin-top:4px;" id="randSize15_30S">—%</div>
                 <div style="font-size:9px; color:#94a3b8; font-weight:600;">Size Win</div>
-                <div style="font-size:16px; font-weight:800; color:#f59e0b; margin-top:2px;" id="randColorWinRate_30S">—%</div>
+                <div style="font-size:18px; font-weight:800; color:#10b981; margin-top:2px;" id="randColor15_30S">—%</div>
                 <div style="font-size:9px; color:#94a3b8; font-weight:600;">Color Win</div>
               </div>
-              <div>
-                <div style="font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase;">Last 15 Rounds</div>
-                <div style="font-size:22px; font-weight:900; color:#10b981; margin-top:4px;" id="randSize15_30S">—%</div>
+              <div style="padding-left:8px;">
+                <div style="font-size:10px; font-weight:700; color:#6366f1; text-transform:uppercase;">Last 30 Rounds</div>
+                <div style="font-size:24px; font-weight:900; color:#6366f1; margin-top:4px;" id="randSize30_30S">—%</div>
                 <div style="font-size:9px; color:#94a3b8; font-weight:600;">Size Win</div>
-                <div style="font-size:16px; font-weight:800; color:#10b981; margin-top:2px;" id="randColor15_30S">—%</div>
-                <div style="font-size:9px; color:#94a3b8; font-weight:600;">Color Win</div>
-              </div>
-              <div>
-                <div style="font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase;">Last 30 Rounds</div>
-                <div style="font-size:22px; font-weight:900; color:#6366f1; margin-top:4px;" id="randSize30_30S">—%</div>
-                <div style="font-size:9px; color:#94a3b8; font-weight:600;">Size Win</div>
-                <div style="font-size:16px; font-weight:800; color:#6366f1; margin-top:2px;" id="randColor30_30S">—%</div>
+                <div style="font-size:18px; font-weight:800; color:#6366f1; margin-top:2px;" id="randColor30_30S">—%</div>
                 <div style="font-size:9px; color:#94a3b8; font-weight:600;">Color Win</div>
               </div>
             </div>
-            <div style="font-size:11px; font-weight:700; color:#475569; display:flex; justify-content:space-between; border-top:1px solid #e2e8f0; padding-top:10px; margin-top:10px; margin-bottom:10px;">
+            <div style="font-size:11px; font-weight:700; color:#475569; display:flex; justify-content:space-between; align-items:center;">
               <div>🔥 Streak: <span id="randCurrentStreak_30S" style="font-weight:800;">—</span></div>
-              <div>🏆 Top Win Streak: <span id="randMaxWinStreak_30S" style="color:#16a34a; font-weight:800;">—</span></div>
-              <div>💀 Max Loss Streak: <span id="randMaxLossStreak_30S" style="color:#dc2626; font-weight:800;">—</span></div>
+              <div style="color:#e2e8f0;">|</div>
+              <div>🏆 Max Win: <span id="randMaxWinStreak_30S" style="color:#16a34a; font-weight:800;">—</span></div>
+              <div style="color:#e2e8f0;">|</div>
+              <div>💀 Max Loss: <span id="randMaxLossStreak_30S" style="color:#dc2626; font-weight:800;">—</span></div>
             </div>
-            <div style="font-size:10px; color:#94a3b8;" id="randTotalRounds_30S">0 played rounds</div>
           </div>
 
           <!-- Active Period Prediction -->
@@ -259,39 +269,49 @@
         <div style="display:flex; flex-direction:column; gap:16px;">
           <h2 style="font-size:15px; font-weight:800; color:#4f46e5; text-align:center; padding:10px; background:#e0e7ff; border-radius:8px; margin-bottom:0;">🎲 WinGo 1M Randomizer</h2>
           
-          <!-- Win Rates Box -->
+          <!-- Standalone All-Time Accuracy Box -->
           <div class="card" style="border-top:4px solid #f59e0b; text-align:center; padding:16px;">
-            <div style="font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; margin-bottom:12px;">🎲 Randomizer Accuracy Analytics</div>
-            
-            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; border-bottom:1px solid #e2e8f0; padding-bottom:12px; margin-bottom:12px;">
+            <div style="font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; margin-bottom:8px;">🏆 All-Time Randomizer Accuracy</div>
+            <div style="display:flex; justify-content:space-around; align-items:center; margin-top:8px;">
               <div>
-                <div style="font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase;">All-Time</div>
-                <div style="font-size:22px; font-weight:900; color:#f59e0b; margin-top:4px;" id="randSizeWinRate_1M">—%</div>
+                <div style="font-size:36px; font-weight:900; color:#f59e0b;" id="randSizeWinRate_1M">—%</div>
+                <div style="font-size:10px; color:#64748b; font-weight:700; text-transform:uppercase; margin-top:2px;">Size Win</div>
+              </div>
+              <div style="border-left:1px solid #e2e8f0; height:40px;"></div>
+              <div>
+                <div style="font-size:36px; font-weight:900; color:#f59e0b;" id="randColorWinRate_1M">—%</div>
+                <div style="font-size:10px; color:#64748b; font-weight:700; text-transform:uppercase; margin-top:2px;">Color Win</div>
+              </div>
+            </div>
+            <div style="font-size:11px; color:#94a3b8; font-weight:700; margin-top:12px; border-top:1px solid #f1f5f9; padding-top:8px;" id="randTotalRounds_1M">0 total played rounds</div>
+          </div>
+
+          <!-- Rolling Analytics & Streaks Box -->
+          <div class="card" style="border-top:4px solid #10b981; text-align:center; padding:16px;">
+            <div style="font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; margin-bottom:12px;">📊 Rolling Analytics & Streaks</div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; border-bottom:1px solid #e2e8f0; padding-bottom:12px; margin-bottom:12px;">
+              <div style="border-right:1px solid #f1f5f9; padding-right:8px;">
+                <div style="font-size:10px; font-weight:700; color:#10b981; text-transform:uppercase;">Last 15 Rounds</div>
+                <div style="font-size:24px; font-weight:900; color:#10b981; margin-top:4px;" id="randSize15_1M">—%</div>
                 <div style="font-size:9px; color:#94a3b8; font-weight:600;">Size Win</div>
-                <div style="font-size:16px; font-weight:800; color:#f59e0b; margin-top:2px;" id="randColorWinRate_1M">—%</div>
+                <div style="font-size:18px; font-weight:800; color:#10b981; margin-top:2px;" id="randColor15_1M">—%</div>
                 <div style="font-size:9px; color:#94a3b8; font-weight:600;">Color Win</div>
               </div>
-              <div>
-                <div style="font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase;">Last 15 Rounds</div>
-                <div style="font-size:22px; font-weight:900; color:#10b981; margin-top:4px;" id="randSize15_1M">—%</div>
+              <div style="padding-left:8px;">
+                <div style="font-size:10px; font-weight:700; color:#6366f1; text-transform:uppercase;">Last 30 Rounds</div>
+                <div style="font-size:24px; font-weight:900; color:#6366f1; margin-top:4px;" id="randSize30_1M">—%</div>
                 <div style="font-size:9px; color:#94a3b8; font-weight:600;">Size Win</div>
-                <div style="font-size:16px; font-weight:800; color:#10b981; margin-top:2px;" id="randColor15_1M">—%</div>
-                <div style="font-size:9px; color:#94a3b8; font-weight:600;">Color Win</div>
-              </div>
-              <div>
-                <div style="font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase;">Last 30 Rounds</div>
-                <div style="font-size:22px; font-weight:900; color:#6366f1; margin-top:4px;" id="randSize30_1M">—%</div>
-                <div style="font-size:9px; color:#94a3b8; font-weight:600;">Size Win</div>
-                <div style="font-size:16px; font-weight:800; color:#6366f1; margin-top:2px;" id="randColor30_1M">—%</div>
+                <div style="font-size:18px; font-weight:800; color:#6366f1; margin-top:2px;" id="randColor30_1M">—%</div>
                 <div style="font-size:9px; color:#94a3b8; font-weight:600;">Color Win</div>
               </div>
             </div>
-            <div style="font-size:11px; font-weight:700; color:#475569; display:flex; justify-content:space-between; border-top:1px solid #e2e8f0; padding-top:10px; margin-top:10px; margin-bottom:10px;">
+            <div style="font-size:11px; font-weight:700; color:#475569; display:flex; justify-content:space-between; align-items:center;">
               <div>🔥 Streak: <span id="randCurrentStreak_1M" style="font-weight:800;">—</span></div>
-              <div>🏆 Top Win Streak: <span id="randMaxWinStreak_1M" style="color:#16a34a; font-weight:800;">—</span></div>
-              <div>💀 Max Loss Streak: <span id="randMaxLossStreak_1M" style="color:#dc2626; font-weight:800;">—</span></div>
+              <div style="color:#e2e8f0;">|</div>
+              <div>🏆 Max Win: <span id="randMaxWinStreak_1M" style="color:#16a34a; font-weight:800;">—</span></div>
+              <div style="color:#e2e8f0;">|</div>
+              <div>💀 Max Loss: <span id="randMaxLossStreak_1M" style="color:#dc2626; font-weight:800;">—</span></div>
             </div>
-            <div style="font-size:10px; color:#94a3b8;" id="randTotalRounds_1M">0 played rounds</div>
           </div>
 
           <!-- Active Period Prediction -->

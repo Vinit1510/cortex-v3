@@ -387,9 +387,25 @@ app.get("/api/rand_stats", async (req, res) => {
     );
     const rows = result.rows;
     const played = rows.filter(r => r.size_win !== 'PENDING');
-    const total = played.length;
-    const sizeWins = played.filter(r => r.size_win === 'WIN').length;
-    const colorWins = played.filter(r => r.color_win === 'WIN').length;
+
+    // High-performance database-wide all-time aggregation query
+    const allStatsResult = await pool.query(
+      `SELECT 
+         COUNT(*) FILTER (WHERE p.size_win IS NOT NULL AND p.size_win != 'PENDING') as total_played,
+         COUNT(*) FILTER (WHERE p.size_win = 'WIN') as size_wins,
+         COUNT(*) FILTER (WHERE p.color_win = 'WIN') as color_wins
+       FROM rand_predictions r
+       INNER JOIN (
+         SELECT DISTINCT ON (game_type, period_id) game_type, period_id, size_win, color_win
+         FROM predictions
+         ORDER BY game_type, period_id, id DESC
+       ) p ON r.game_type = p.game_type AND r.period_id = p.period_id
+       WHERE r.game_type = $1`,
+      [game]
+    );
+    const dbAllPlayed = parseInt(allStatsResult.rows[0]?.total_played || 0);
+    const dbSizeWins = parseInt(allStatsResult.rows[0]?.size_wins || 0);
+    const dbColorWins = parseInt(allStatsResult.rows[0]?.color_wins || 0);
 
     // Last 15 played rounds calculations
     const last15 = played.slice(0, 15);
@@ -432,9 +448,9 @@ app.get("/api/rand_stats", async (req, res) => {
     res.json({
       recent: rows,
       stats: {
-        total,
-        sizeWinRate: total > 0 ? Math.round((sizeWins / total) * 100) : 0,
-        colorWinRate: total > 0 ? Math.round((colorWins / total) * 100) : 0,
+        total: dbAllPlayed,
+        sizeWinRate: dbAllPlayed > 0 ? Math.round((dbSizeWins / dbAllPlayed) * 100) : 0,
+        colorWinRate: dbAllPlayed > 0 ? Math.round((dbColorWins / dbAllPlayed) * 100) : 0,
         last15: {
           total: last15.length,
           sizeWinRate: last15.length > 0 ? Math.round((sizeWins15 / last15.length) * 100) : 0,
