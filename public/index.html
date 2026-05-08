@@ -153,6 +153,7 @@
       <button class="btn" style="border-color:#a855f7;color:#9333ea;" onclick="resetWeights()">🧠 Reset AI Memory</button>
       <button class="btn btn-danger" onclick="clearData('1M')">🗑 Clear 1M</button>
       <button class="btn btn-danger" onclick="clearData('30S')">🗑 Clear 30S</button>
+      <button class="btn btn-danger" style="border-color:#f59e0b;color:#d97706;background:#fffbeb;" onclick="clearRandomizer()">🗑 Clear Randomizer</button>
       <span class="header-badge pulsing" id="refreshTimer" style="color: #4f46e5; background: #e0e7ff; border: none;">⏱ 5s</span>
     </div>
   </div>
@@ -670,6 +671,19 @@
       if (!confirm(`Clear all ${mode} data?`)) return;
       await fetch(`/api/clear/${mode}`, { method: "DELETE" });
       fetchStats();
+    }
+
+    async function clearRandomizer() {
+      if (!confirm("Are you sure you want to clear all Randomizer prediction history?")) return;
+      const res = await fetch("/api/clear_randomizer", { method: "POST" });
+      const d = await res.json();
+      if (d.ok) {
+        alert("✅ " + d.message);
+        fetchRandStats("1M");
+        fetchRandStats("30S");
+      } else {
+        alert("❌ Error: " + d.error);
+      }
     }
 
     async function resetWeights() {
