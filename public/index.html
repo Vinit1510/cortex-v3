@@ -150,6 +150,7 @@
     </div>
     <div class="header-actions">
       <button class="btn btn-green" onclick="downloadCSV()">📥 Export CSV</button>
+      <button class="btn" style="border-color:#f59e0b;color:#d97706;background:#fffbeb;" onclick="downloadRandCSV()">📥 Export Randomizer CSV</button>
       <button class="btn" style="border-color:#a855f7;color:#9333ea;" onclick="resetWeights()">🧠 Reset AI Memory</button>
       <button class="btn btn-danger" onclick="clearData('1M')">🗑 Clear 1M</button>
       <button class="btn btn-danger" onclick="clearData('30S')">🗑 Clear 30S</button>
@@ -788,6 +789,10 @@
 
     function downloadCSV() {
       window.open("/data", "_blank");
+    }
+
+    function downloadRandCSV() {
+      window.open("/rand_data", "_blank");
     }
 
     // Auto-refresh every 5 seconds

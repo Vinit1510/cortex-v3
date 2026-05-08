@@ -499,6 +499,45 @@ app.get("/data", async (req, res) => {
   }
 });
 
+// Download Randomizer CSV (export from database)
+app.get("/rand_data", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT r.game_type, r.period_id, r.rand_num, r.rand_size, r.rand_color,
+              p.actual_num, p.actual_size, p.actual_color,
+              CASE WHEN p.actual_size IS NULL THEN 'PENDING'
+                   WHEN r.rand_size = p.actual_size THEN 'WIN' ELSE 'LOSS' END AS size_win,
+              CASE WHEN p.actual_color IS NULL THEN 'PENDING'
+                   WHEN r.rand_color = p.actual_color OR
+                        (r.rand_color LIKE '%RED%' AND p.actual_color LIKE '%RED%') OR
+                        (r.rand_color LIKE '%GREEN%' AND p.actual_color LIKE '%GREEN%')
+                        THEN 'WIN' ELSE 'LOSS' END AS color_win,
+              r.created_at
+       FROM rand_predictions r
+       LEFT JOIN (
+         SELECT DISTINCT ON (game_type, period_id) game_type, period_id, actual_num, actual_size, actual_color
+         FROM predictions
+         ORDER BY game_type, period_id, id DESC
+       ) p ON r.game_type = p.game_type AND r.period_id = p.period_id
+       ORDER BY r.period_id ASC`
+    );
+    const headers = "GameType,PeriodID,RandNum,RandSize,RandColor,ActualNum,ActualSize,ActualColor,SizeWin,ColorWin,CreatedAt";
+    const rows = result.rows.map((r) =>
+      [r.game_type, r.period_id, r.rand_num, r.rand_size, r.rand_color,
+       r.actual_num !== null ? r.actual_num : "", 
+       r.actual_size || "", 
+       r.actual_color || "",
+       r.size_win, r.color_win, r.created_at ? r.created_at.toISOString() : ""].join(",")
+    );
+    const csv = [headers, ...rows].join("\n");
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=randomizer_intel.csv");
+    res.send(csv);
+  } catch (err) {
+    res.status(500).send("Error exporting Randomizer CSV: " + err.message);
+  }
+});
+
 // Health check (for UptimeRobot)
 app.get("/health", (req, res) => res.json({ status: "alive", uptime: process.uptime() }));
 
