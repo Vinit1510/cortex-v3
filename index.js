@@ -391,12 +391,16 @@ app.get("/api/rand_stats", async (req, res) => {
     // High-performance database-wide all-time aggregation query
     const allStatsResult = await pool.query(
       `SELECT 
-         COUNT(*) FILTER (WHERE p.size_win IS NOT NULL AND p.size_win != 'PENDING') as total_played,
-         COUNT(*) FILTER (WHERE p.size_win = 'WIN') as size_wins,
-         COUNT(*) FILTER (WHERE p.color_win = 'WIN') as color_wins
+         COUNT(*) FILTER (WHERE p.actual_size IS NOT NULL) as total_played,
+         COUNT(*) FILTER (WHERE p.actual_size IS NOT NULL AND r.rand_size = p.actual_size) as size_wins,
+         COUNT(*) FILTER (WHERE p.actual_color IS NOT NULL AND (
+           r.rand_color = p.actual_color OR
+           (r.rand_color LIKE '%RED%' AND p.actual_color LIKE '%RED%') OR
+           (r.rand_color LIKE '%GREEN%' AND p.actual_color LIKE '%GREEN%')
+         )) as color_wins
        FROM rand_predictions r
        INNER JOIN (
-         SELECT DISTINCT ON (game_type, period_id) game_type, period_id, size_win, color_win
+         SELECT DISTINCT ON (game_type, period_id) game_type, period_id, actual_size, actual_color
          FROM predictions
          ORDER BY game_type, period_id, id DESC
        ) p ON r.game_type = p.game_type AND r.period_id = p.period_id
